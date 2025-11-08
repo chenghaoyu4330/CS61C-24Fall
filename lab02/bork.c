@@ -7,7 +7,9 @@
 #include <string.h>
 
 char *alloc_str(int len) {
-    return malloc(len*sizeof(char));
+    char *str = malloc((1+len)*sizeof(char));
+    str[len] = '\0'; // Null terminate the string
+    return str;
 }
 
 /* Str helper functions */
