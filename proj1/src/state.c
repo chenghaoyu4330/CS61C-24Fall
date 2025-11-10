@@ -276,7 +276,41 @@ static char next_square(game_state_t *state, unsigned int snum) {
   Note that this function ignores food, walls, and snake bodies when moving the head.
 */
 static void update_head(game_state_t *state, unsigned int snum) {
-  // TODO: Implement this function.
+  unsigned int cur_snake_head_col = state->snakes[snum].head_col;
+  unsigned int cur_snake_head_row = state->snakes[snum].head_row;
+  char cur_snake_head = get_board_at(state, cur_snake_head_row, cur_snake_head_col);
+
+  switch (cur_snake_head)  // 除了更新新的头的信息之外，记得更新老的头所在board位置的字符
+  {
+  case 'W':
+    state->snakes[snum].head_row -= 1;
+    set_board_at(state, cur_snake_head_row-1, cur_snake_head_col, 'W');
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '^');
+    break;
+  
+  case 'A':
+    state->snakes[snum].head_col -= 1;
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col-1, 'A');
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '<');
+    break;
+  
+  case 'S':
+    state->snakes[snum].head_row += 1;
+    set_board_at(state, cur_snake_head_row+1, cur_snake_head_col, 'S');
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col, 'v');
+    break;
+  
+  case 'D':
+    state->snakes[snum].head_col += 1;
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col+1, 'D');
+    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '>');
+    break;
+  
+  default:
+    printf("%s", "?");
+    break;
+  }
+
   return;
 }
 
