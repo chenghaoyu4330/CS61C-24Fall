@@ -23,7 +23,7 @@ static void update_head(game_state_t *state, unsigned int snum);
 
 /* Task 1 */
 game_state_t *create_default_state() {
-  // 创建一条存储在堆内存中的蛇
+  // 创建一条蛇，存储在堆中
   snake_t *snake = malloc(sizeof(snake_t));
   if (snake == NULL) {
     free(snake);
@@ -35,7 +35,7 @@ game_state_t *create_default_state() {
   snake->head_col = 4;
   snake->live = true;
 
-  // 创建游戏状态，存储在堆内存中
+  // 创建游戏状态，存储在堆中
   game_state_t *state = malloc(sizeof(game_state_t));
   if (state == NULL) {
     return NULL;
@@ -62,7 +62,7 @@ game_state_t *create_default_state() {
 /* Task 2 */
 void free_state(game_state_t *state) {
   // 释放与游戏状态相关的所有内存，包括棋盘和蛇。
-  // 注意，我们需要释放棋盘的每一行，因为释放行指针数组（state->board）并不会释放行本身（state->board[i]）。
+  // 注意需要释放棋盘的每一行，因为释放行指针数组（state->board）并不会释放行本身（state->board[i]）。
   if (state == NULL) {
     return;
   }
@@ -349,15 +349,82 @@ void update_state(game_state_t *state, int (*add_food)(game_state_t *state)) {
 }
 
 /* Task 5.1 */
+// Given a FILE * file, read a line from file and store the string on the heap. If fgets errors, return NULL. You must use fgets to read from the file pointer. Other string functions, such as strchr, may be helpful here as well! Do not worry about error handling for calls to fgets.
+// Return a pointer to the newly read string. NULL if there are any errors, or if EOF is reached.
+//Remember that each row of the game board might have a different number of columns. Your implementation should be memory-efficient and should not allocate significantly more memory than necessary to store the board. For example, if a row is 3 characters long, you shouldn't be allocating 100 bytes of space for that row.
+// 返回的字符串应当以null字符结尾，并且不应包含换行符。
 char *read_line(FILE *fp) {
-  // TODO: Implement this function.
-  return NULL;
+  if (fp == NULL) {
+    return NULL;
+  }
+  size_t capacity = 32;  // 初始缓冲区大小
+  size_t length = 0;     // 当前读取的字符数
+  char *buffer = malloc(capacity * sizeof(char));
+  if (buffer == NULL) {
+    return NULL;
+  }
+
+  while (true) {
+    // 读取一块数据
+    if (fgets(buffer + length, capacity - length, fp) == NULL) {
+      if (length == 0) {
+        free(buffer);
+        return NULL;  // EOF或错误且未读取任何数据
+      }
+      break;  // EOF或错误但已读取数据，跳出循环
+    }
+
+    // 更新已读取的长度
+    length += strlen(buffer + length);
+
+    // 检查是否读到了换行符
+    if (buffer[length - 1] == '\n') {
+      buffer[length - 1] = '\0';  // 替换换行符为null字符
+      break;
+    }
+
+    // 扩展缓冲区
+    capacity *= 2;
+    char *new_buffer = realloc(buffer, capacity * sizeof(char));
+    if (new_buffer == NULL) {
+      free(buffer);
+      return NULL;  // 内存分配失败
+    }
+    buffer = new_buffer;
+  }
+
+  return buffer;
 }
 
 /* Task 5.2 */
+// Using read_line, implement the load_board function. Return a pointer to the newly created game_state_t struct. NULL if there are any errors.
 game_state_t *load_board(FILE *fp) {
-  // TODO: Implement this function.
-  return NULL;
+  game_state_t *state = malloc(sizeof(game_state_t));
+  if (state == NULL) {
+    return NULL;
+  }
+  state->num_rows = 0;
+  state->board = NULL;
+  state->num_snakes = 0;
+  state->snakes = NULL;
+  while (true) {
+    // 读取每一行
+    char *line = read_line(fp);
+    if (line == NULL) {
+      break;  // 读取结束或出错
+    }
+    // 扩展棋盘行指针数组
+    char **new_board = realloc(state->board, (state->num_rows + 1) * sizeof(char *));
+    if (new_board == NULL) {
+      free(line);
+      free_state(state);
+      return NULL;  // 内存分配失败
+    }
+    state->board = new_board;
+    state->board[state->num_rows] = line;
+    state->num_rows++;
+  }
+  return state;
 }
 
 /*
