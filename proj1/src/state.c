@@ -240,28 +240,15 @@ static unsigned int get_next_col(unsigned int cur_col, char c) {
   This function should not modify anything.
 */
 static char next_square(game_state_t *state, unsigned int snum) {
+  // 获取当前头部的位置和字符
   unsigned int cur_snake_head_col = state->snakes[snum].head_col;
   unsigned int cur_snake_head_row = state->snakes[snum].head_row;
   char cur_snake_head = get_board_at(state, cur_snake_head_row, cur_snake_head_col);
-  switch (cur_snake_head)
-  {
-  case 'W':
-    return get_board_at(state, cur_snake_head_row-1, cur_snake_head_col);
-  
-  case 'A':
-    return get_board_at(state, cur_snake_head_row, cur_snake_head_col-1);
-  
-  case 'S':
-    return get_board_at(state, cur_snake_head_row+1, cur_snake_head_col);
-  
-  case 'D':
-    return get_board_at(state, cur_snake_head_row, cur_snake_head_col+1);
-  
-  default:
-    break;
-  }
-  
-  return '?';
+
+  // 计算移动后的头部所在位置，返回该位置的字符
+  unsigned int next_snake_head_col = get_next_col(cur_snake_head_col, cur_snake_head);
+  unsigned int next_snake_head_row = get_next_row(cur_snake_head_row, cur_snake_head);
+  return get_board_at(state, next_snake_head_row, next_snake_head_col);
 }
 
 /*
@@ -276,40 +263,22 @@ static char next_square(game_state_t *state, unsigned int snum) {
   Note that this function ignores food, walls, and snake bodies when moving the head.
 */
 static void update_head(game_state_t *state, unsigned int snum) {
+  // 获取当前头部所在位置以及字符
   unsigned int cur_snake_head_col = state->snakes[snum].head_col;
   unsigned int cur_snake_head_row = state->snakes[snum].head_row;
   char cur_snake_head = get_board_at(state, cur_snake_head_row, cur_snake_head_col);
 
-  switch (cur_snake_head)  // 除了更新新的头的信息之外，记得更新老的头所在board位置的字符
-  {
-  case 'W':
-    state->snakes[snum].head_row -= 1;
-    set_board_at(state, cur_snake_head_row-1, cur_snake_head_col, 'W');
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '^');
-    break;
-  
-  case 'A':
-    state->snakes[snum].head_col -= 1;
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col-1, 'A');
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '<');
-    break;
-  
-  case 'S':
-    state->snakes[snum].head_row += 1;
-    set_board_at(state, cur_snake_head_row+1, cur_snake_head_col, 'S');
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col, 'v');
-    break;
-  
-  case 'D':
-    state->snakes[snum].head_col += 1;
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col+1, 'D');
-    set_board_at(state, cur_snake_head_row, cur_snake_head_col, '>');
-    break;
-  
-  default:
-    printf("%s", "?");
-    break;
-  }
+  // 计算新头部的位置
+  unsigned int new_snake_head_row = get_next_row(cur_snake_head_row, cur_snake_head);
+  unsigned int new_snake_head_col = get_next_col(cur_snake_head_col, cur_snake_head);
+
+  // 更新新头部的位置
+  state->snakes[snum].head_row = new_snake_head_row;
+  state->snakes[snum].head_col = new_snake_head_col;
+
+  // 将新头部的位置设置为当前头部；调用head_to_body，将老头部所在的head转换为body
+  set_board_at(state, new_snake_head_row, new_snake_head_col, cur_snake_head);
+  set_board_at(state, cur_snake_head_row, cur_snake_head_col, head_to_body(cur_snake_head));
 
   return;
 }
@@ -325,13 +294,57 @@ static void update_head(game_state_t *state, unsigned int snum) {
   ...in the snake struct: update the row and col of the tail
 */
 static void update_tail(game_state_t *state, unsigned int snum) {
-  // TODO: Implement this function.
+  // 获取当前尾巴所在位置以及字符
+  unsigned int cur_snake_tail_col = state->snakes[snum].tail_col;
+  unsigned int cur_snake_tail_row = state->snakes[snum].tail_row;
+  char cur_snake_tail = get_board_at(state, cur_snake_tail_row, cur_snake_tail_col);
+
+  // 计算新尾巴的位置以及字符
+  unsigned int new_snake_tail_row = get_next_row(cur_snake_tail_row, cur_snake_tail);
+  unsigned int new_snake_tail_col = get_next_col(cur_snake_tail_col, cur_snake_tail);
+  char new_snake_tail_cur_body = get_board_at(state, new_snake_tail_row, new_snake_tail_col);
+
+  // 更新新尾巴的位置
+  state->snakes[snum].tail_row = new_snake_tail_row;
+  state->snakes[snum].tail_col = new_snake_tail_col;
+
+  // 将当前尾巴的位置设为空格；调用body_to_tail，将新尾巴所在的body转换为tail
+  set_board_at(state, cur_snake_tail_row, cur_snake_tail_col, ' ');
+  set_board_at(state, new_snake_tail_row, new_snake_tail_col, body_to_tail(new_snake_tail_cur_body));
+
   return;
 }
 
 /* Task 4.5 */
 void update_state(game_state_t *state, int (*add_food)(game_state_t *state)) {
-  // TODO: Implement this function.
+  unsigned int num_snakes = state->num_snakes;
+  for (unsigned int i=0; i<num_snakes; ++i) {
+    snake_t* snake = &state->snakes[i];
+
+    // 判断当前蛇的存活情况，死亡则跳过
+    if (!snake->live) continue;
+
+    // 获取蛇即将移动到的位置的字符
+    char dest_board_char = next_square(state, i);
+
+    // 根据即将移动到的位置的信息，更新蛇的状态
+    if (is_snake(dest_board_char) || dest_board_char == '#')  // 撞到蛇的身体或者墙壁，死亡、停止移动、头部替换为'x'
+    {
+      snake->live = false;
+      set_board_at(state, snake->head_row, snake->head_col, 'x');
+    }
+    else if (dest_board_char == '*') // 遇到水果，吃掉并增加1个长度，则可以只更新头部，不更新尾部；棋盘新增水果
+    {
+      update_head(state, i);
+      add_food(state);
+    }
+    else  // 遇到空格，正常更新头和尾
+    {
+      update_head(state, i);
+      update_tail(state, i);
+    }
+    
+  }
   return;
 }
 
