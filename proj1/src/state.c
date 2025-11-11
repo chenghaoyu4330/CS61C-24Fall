@@ -40,21 +40,36 @@ game_state_t *create_default_state() {
   if (state == NULL) {
     return NULL;
   }
+
+  state->num_snakes = 1;
+  state->snakes = snake;
+
   state->num_rows = 18;
   state->board = malloc(state->num_rows * sizeof(char *));
   if (state->board == NULL) {
     free(state);
     return NULL;
   }
-  state->board[0] = strcpy(malloc(21 * sizeof(char)), "####################");
-  state->board[1] = strcpy(malloc(21 * sizeof(char)), "#                  #");
-  state->board[2] = strcpy(malloc(21 * sizeof(char)), "# d>D    *         #");
-  for (unsigned int i = 3; i < state->num_rows - 1; ++i) {
-    state->board[i] = strcpy(malloc(21 * sizeof(char)), "#                  #");
+
+  for (int i = 0; i < 18; i++) {
+    state->board[i] = (char *) malloc(22 * sizeof(char));
+    if (state->board[i] == NULL) {
+      perror("Failed to allocate memory for default_state");
+      return NULL;
+    }
   }
-  state->board[state->num_rows - 1] = strcpy(malloc(21 * sizeof(char)), "####################");
-  state->num_snakes = 1;
-  state->snakes = snake;
+
+  // 来自task 5的反馈：这里一定要加\n！！！不然后面调试有好果汁吃！！
+  // \n是因为task 5实现的从文件中读取行的函数，会把\n一并读取，因此这里构建board时也要把\n带上
+  strcpy(state->board[0], "####################\n");
+  for (int i = 1; i <= 16; ++i) {
+    if (i == 2) {
+      continue;
+    }
+    strcpy(state->board[i], "#                  #\n");
+  }
+  strcpy(state->board[2], "# d>D    *         #\n");
+  strcpy(state->board[17], "####################\n");
 
   return state;
 }
@@ -62,7 +77,7 @@ game_state_t *create_default_state() {
 /* Task 2 */
 void free_state(game_state_t *state) {
   // 释放与游戏状态相关的所有内存，包括棋盘和蛇。
-  // 注意需要释放棋盘的每一行，因为释放行指针数组（state->board）并不会释放行本身（state->board[i]）。
+  // 注意需要释放board的每一行，因为释放行指针数组（state->board）并不会释放行本身（state->board[i]）。
   if (state == NULL) {
     return;
   }
@@ -79,7 +94,7 @@ void free_state(game_state_t *state) {
 void print_board(game_state_t *state, FILE *fp) {
   // 按行打印棋盘到指定的文件指针fp
   for (unsigned int i = 0; i < state->num_rows; ++i) {
-    fprintf(fp, "%s\n", state->board[i]);
+    fprintf(fp, "%s", state->board[i]);  // 来自task 5的反馈：这里要删掉\n，因为board的每一行已经有\n了
   }
   return;
 }
@@ -349,19 +364,16 @@ void update_state(game_state_t *state, int (*add_food)(game_state_t *state)) {
 }
 
 /* Task 5.1 */
-// Given a FILE * file, read a line from file and store the string on the heap. If fgets errors, return NULL. You must use fgets to read from the file pointer. Other string functions, such as strchr, may be helpful here as well! Do not worry about error handling for calls to fgets.
-// Return a pointer to the newly read string. NULL if there are any errors, or if EOF is reached.
-//Remember that each row of the game board might have a different number of columns. Your implementation should be memory-efficient and should not allocate significantly more memory than necessary to store the board. For example, if a row is 3 characters long, you shouldn't be allocating 100 bytes of space for that row.
-// 返回的字符串应当以null字符结尾，并且不应包含换行符。
 char *read_line(FILE *fp) {
   if (fp == NULL) {
     return NULL;
   }
+
   size_t capacity = 16;  // 初始缓冲区大小
   size_t length = 0;     // 当前读取的字符数
+
   char *buffer = (char *) malloc(capacity * sizeof(char));
   if (buffer == NULL) {
-    free(buffer);
     return NULL;
   }
 
@@ -373,6 +385,9 @@ char *read_line(FILE *fp) {
 
     // 更新已读取的长度
     length += strlen(buffer + length);
+    // 从上次读取的位置（指针指向buffer + length）开始计算长度，strlen返回的是从该位置到null字符的长度
+    // 无需担心strlen读不到null字符的问题，因为fgets保证了读取的字符串以null字符结尾
+    // 或者直接使用length = strlen(buffer)也是可以的
 
     // 扩展缓冲区
     capacity *= 2;
@@ -389,11 +404,10 @@ char *read_line(FILE *fp) {
     return NULL;
   }
 
-  return NULL;
+  return NULL;  // 返回已读取的数据，即使没有换行符
 }
 
 /* Task 5.2 */
-// Using read_line, implement the load_board function. Return a pointer to the newly created game_state_t struct. NULL if there are any errors.
 game_state_t *load_board(FILE *fp) {
   game_state_t *state = (game_state_t *) malloc(sizeof(game_state_t));
   if (state == NULL) {
@@ -415,7 +429,6 @@ game_state_t *load_board(FILE *fp) {
     // 扩展棋盘行指针数组
     char **new_board = (char **) realloc(state->board, (state->num_rows + 1) * sizeof(char *));
     if (new_board == NULL) {
-      free(line);
       free(new_board);
       free(state->board);
       free_state(state);
@@ -424,7 +437,7 @@ game_state_t *load_board(FILE *fp) {
     
     state->board = new_board;
     state->board[state->num_rows] = line;
-    state->num_rows++;
+    (state->num_rows)++;
   }
   return state;
 }
@@ -438,12 +451,63 @@ game_state_t *load_board(FILE *fp) {
   fill in the head row and col in the struct.
 */
 static void find_head(game_state_t *state, unsigned int snum) {
-  // TODO: Implement this function.
+  // 获取蛇的尾巴位置和字符
+  unsigned int cur_row = state->snakes[snum].tail_row;
+  unsigned int cur_col = state->snakes[snum].tail_col;
+  char cur_char = get_board_at(state, cur_row, cur_col);
+
+  // 追踪蛇的身体直到找到头部
+  while (1) {
+    unsigned int next_row = get_next_row(cur_row, cur_char);
+    unsigned int next_col = get_next_col(cur_col, cur_char);
+    char next_char = get_board_at(state, next_row, next_col);
+    if (is_head(next_char)) {
+      state->snakes[snum].head_row = next_row;
+      state->snakes[snum].head_col = next_col;
+      return;
+    }
+    else {
+      cur_row = next_row;
+      cur_col = next_col;
+      cur_char = next_char;
+    }
+  }
+  printf("find_head() went wrong!");
   return;
 }
 
 /* Task 6.2 */
 game_state_t *initialize_snakes(game_state_t *state) {
-  // TODO: Implement this function.
-  return NULL;
+  // 遍历棋盘，找到所有蛇的尾巴，初始化蛇结构体数组
+
+  unsigned int total_snakes = 0;
+  unsigned int board_rows = state->num_rows;
+  snake_t* snakes = NULL;
+
+  // 遍历棋盘的每一个位置
+  for (unsigned int i=0; i<board_rows; ++i) {
+    size_t board_cols = strlen(state->board[i]);
+    for (unsigned int j=0; j<board_cols; ++j) {
+      if (is_tail(get_board_at(state, i, j))) {
+        // 发现蛇的尾巴，则扩展state->snakes数组，初始化新蛇的信息
+        // 注意reallocate可能返回NULL，因此需要一个临时指针new_snakes接收返回值，以防止直接覆盖snakes指针导致内存泄漏
+        // 如果不这样做，运行会报错 Segmentation fault (core dumped)
+        snake_t* new_snakes = (snake_t*) realloc(snakes, (total_snakes+1) * sizeof(snake_t));
+        if (new_snakes == NULL) {
+          free(snakes);
+          return NULL;
+        }
+        snakes = new_snakes;  // 更新snakes指针
+        snakes[total_snakes].tail_row = i;
+        snakes[total_snakes].tail_col = j;
+        snakes[total_snakes].live = true;
+        state->snakes = snakes;
+        state->num_snakes = total_snakes+1;
+        find_head(state, total_snakes);
+        total_snakes++;
+      }
+    }
+  }
+  
+  return state;
 }
