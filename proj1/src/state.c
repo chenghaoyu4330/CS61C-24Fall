@@ -94,7 +94,7 @@ void free_state(game_state_t *state) {
 void print_board(game_state_t *state, FILE *fp) {
   // 按行打印棋盘到指定的文件指针fp
   for (unsigned int i = 0; i < state->num_rows; ++i) {
-    fprintf(fp, "%s", state->board[i]);  // 来自task 5的反馈：这里要删掉\n，因为board的每一行已经有\n了
+    fprintf(fp, "%s", state->board[i]);  // 来自task 5的反馈：这里的"%s\n"要删掉\n，因为board的每一行已经有\n了
   }
   return;
 }
